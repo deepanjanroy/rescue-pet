@@ -2,10 +2,12 @@ const s = (num) => 0.5 * num;
 const NUM_CATS = 3;  // Easy to change number of cats
 let foundHome = Array(NUM_CATS).fill(false);
 let moveDirection = Array(NUM_CATS).fill().map(() => ({x: 0.3, y: -0.5}));
-let speedCoefficient = 2.0
+let speedCoefficient = 3.0
 let nearCatches = Array(NUM_CATS).fill(0);
-let speedScalar = 0.1;
-const speedFullCoeff = () => speedCoefficient + nearCatches.reduce((a, b) => a + b) * speedScalar;
+let speedInc = 0.1;
+const speedFullCoeff = () => speedCoefficient + nearCatches.reduce((a, b) => a + b) * speedInc;
+const catchRadius = () => speedFullCoeff() * 5;
+const ALWAYS_SHOW_CATS = false;
 
 function preload() {
   img = loadImage('map.png');
@@ -32,7 +34,7 @@ function randomlyChangeDirection(catIndex) {
 function drawCat(catIndex) {
   const showTime = 10;  // frames to show
   const period = 600;   // 10s * 60fps = 600 frames
-  if (frameCount % period < showTime) {
+  if (ALWAYS_SHOW_CATS || (frameCount % period < showTime)) {
     push();
     fill(0);
     text("🐈", home[catIndex].x, home[catIndex].y);
@@ -65,6 +67,28 @@ function moveHome(catIndex) {
   home[catIndex].y += moveDirection[catIndex].y;
 }
 
+function drawFog(opacity) {
+  // fill(50, 50, 50, opacity * 250);
+  // rect(0, 0, s(img.width), s(img.height));
+}
+
+function drawLight() {
+  // Create a radial gradient for the spotlight effect
+  let radius = s(img.width); // Adjust this value to change spotlight size
+  let gradient = drawingContext.createRadialGradient(
+    (frameCount * 10) % s(img.width), s(img.height) / 2, 0,
+    (frameCount * 10) % s(img.width), s(img.height) / 2, radius
+  );
+  
+  // Define gradient colors
+  gradient.addColorStop(0, `hsla(50, 83.50%, 52.40%, 0.50)`);
+  gradient.addColorStop(1, `hsla(50, 83.50%, 10.40%, 0.50)`);
+  
+  // Apply gradient
+  drawingContext.fillStyle = gradient;
+  rect(0, 0, s(img.width), s(img.height));
+}
+
 function draw() {
   for (let i = 0; i < NUM_CATS; i++) {
     moveHome(i);
@@ -72,6 +96,7 @@ function draw() {
   clear();
   noCursor();
   image(img, 0, 0, s(img.width), s(img.height));
+  drawLight();
   fill(0);
   textSize(20);
   
@@ -84,7 +109,7 @@ function draw() {
       minDistance = distance;
       closestCatIndex = i;
     }
-    if (!foundHome[i] && distance <= speedFullCoeff() * 10) {
+    if (!foundHome[i] && distance <= catchRadius()) {
       foundHome[i] = true;
     }
   }
@@ -92,16 +117,15 @@ function draw() {
   const allCatsFound = foundHome.every(found => found);
 
   if (!allCatsFound) {
-    // Calculate redValue before using it
+    // Calculate fogOpacity before using it
     const largestDistance = s(sqrt(pow(img.width, 2) + pow(img.height, 2)));
-    const redValuePreLog = map(minDistance, 0, largestDistance * 0.6, 0, 1, true);
-    const redValue = 0.5 * log((100 * redValuePreLog) + 1) / log(10);
+    const fogOpacityPreLog = map(minDistance, 0, largestDistance * 0.6, 0, 1, true);
+    const fogOpacity = 0.5 * log((100 * fogOpacityPreLog) + 1) / log(10);
     
     // Only show brown overlay if there's at least one unfound cat
     if (minDistance !== Infinity) {
       // Create brown overlay rectangle - opacity based on distance to nearest unfound cat
-      fill(187, 110, 71, redValue * 250);
-      rect(0, 0, s(img.width), s(img.height));
+      drawFog(fogOpacity);
     }
     // Set up text styling
     fill(0);
@@ -136,10 +160,10 @@ function draw() {
     }
   });
   
-  // text(`${abs(home.x - mouseX)}, ${abs(home.y - mouseY)}, ${distance}, ${log(redValue)}`, 20, 50);
+  // text(`${abs(home.x - mouseX)}, ${abs(home.y - mouseY)}, ${distance}, ${log(fogOpacity)}`, 20, 50);
   // text(`${home.x}, ${s(img.width)}, ${home.y}, ${s(img.height)}`, 20, 50);
   fill("steelblue");
-  circle(mouseX, mouseY, speedFullCoeff());
+  circle(mouseX, mouseY, catchRadius());
 
   for (let i = 0; i < NUM_CATS; i++) {
     drawCat(i);
