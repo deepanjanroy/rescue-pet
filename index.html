@@ -12,4 +12,11 @@
     </main>
     <script src="sketch.js"></script>
   </body>
+  <script>
+    // Prevent touchmove from scrolling the page on mobile.
+    window.addEventListener("touchmove", function (e) {
+      e.preventDefault();
+    }, { passive: false });
+
+  </script>
 </html>
