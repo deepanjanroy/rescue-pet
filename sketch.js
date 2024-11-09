@@ -93,6 +93,11 @@ function drawLight() {
   rect(0, 0, s(img.width), s(img.height));
 }
 
+function drawCatcher() {
+  fill("steelblue");
+  circle(mouseX, mouseY, catchRadius());
+}
+
 function draw() {
   for (let i = 0; i < NUM_CATS; i++) {
     moveHome(i);
@@ -166,8 +171,8 @@ function draw() {
   
   // text(`${abs(home.x - mouseX)}, ${abs(home.y - mouseY)}, ${distance}, ${log(fogOpacity)}`, 20, 50);
   // text(`${home.x}, ${s(img.width)}, ${home.y}, ${s(img.height)}`, 20, 50);
-  fill("steelblue");
-  circle(mouseX, mouseY, catchRadius());
+  drawCatcher()
+  
 
   for (let i = 0; i < NUM_CATS; i++) {
     drawCat(i);
