@@ -73,11 +73,15 @@ function drawFog(opacity) {
 }
 
 function drawLight() {
-  // Create a radial gradient for the spotlight effect
-  let radius = s(img.width); // Adjust this value to change spotlight size
+  // Calculate the light position with a wider range
+  const totalWidth = s(img.width) * 3; // One full width to the left, one full width to the right, and one in the center
+  const lightX = ((frameCount * 5) % totalWidth) - s(img.width); // Subtract width to start off-screen
+  
+  let radius = s(img.width) * 0.8; // Adjusted radius for better sun-beam effect
+  
   let gradient = drawingContext.createRadialGradient(
-    (frameCount * 10) % s(img.width), s(img.height) / 2, 0,
-    (frameCount * 10) % s(img.width), s(img.height) / 2, radius
+    lightX, s(img.height) / 2, 0,
+    lightX, s(img.height) / 2, radius
   );
   
   // Define gradient colors
