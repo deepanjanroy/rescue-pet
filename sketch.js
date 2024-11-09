@@ -1,7 +1,11 @@
 const s = (num) => 0.5 * num;
-let foundHome = false;
-let moveDirection = {x: 0.3, y: -0.5};
-let speedCoefficient = 0.5
+const NUM_CATS = 3;  // Easy to change number of cats
+let foundHome = Array(NUM_CATS).fill(false);
+let moveDirection = Array(NUM_CATS).fill().map(() => ({x: 0.3, y: -0.5}));
+let speedCoefficient = 2.0
+let nearCatches = Array(NUM_CATS).fill(0);
+let speedScalar = 0.1;
+const speedFullCoeff = () => speedCoefficient + nearCatches.reduce((a, b) => a + b) * speedScalar;
 
 function preload() {
   img = loadImage('map.png');
@@ -9,82 +13,147 @@ function preload() {
 
 function setup() {
   createCanvas(s(img.width), s(img.height) + 50);
-  home = {x: Math.random() * s(img.width), y: Math.random() * s(img.height)}
-
+  home = Array(NUM_CATS).fill().map(() => ({
+    x: Math.random() * s(img.width), 
+    y: Math.random() * s(img.height)
+  }));
 }
 
-function drawCat() {
-  push();
-  fill(0);
-  text("🐈", home.x, home.y);
-  pop();
+function randomlyChangeDirection(catIndex) {
+  if (random() < 0.02) {
+    const angle = random(TWO_PI);
+    moveDirection[catIndex] = {
+      x: cos(angle),
+      y: sin(angle)
+    };
+  }
 }
 
-function moveHome() {
-  if (foundHome) return;
+function drawCat(catIndex) {
+  const showTime = 10;  // frames to show
+  const period = 600;   // 10s * 60fps = 600 frames
+  if (frameCount % period < showTime) {
+    push();
+    fill(0);
+    text("🐈", home[catIndex].x, home[catIndex].y);
+    circle(home[catIndex].x, home[catIndex].y, 5 + sin(frameCount * 0.1) * 2);
+    pop();
+  }
+}
+
+function moveHome(catIndex) {
+  if (foundHome[catIndex]) return;
+  randomlyChangeDirection(catIndex);
+  const speed = speedFullCoeff();
+  const nextPos = {
+    x: home[catIndex].x + moveDirection[catIndex].x,
+    y: home[catIndex].y + moveDirection[catIndex].y
+  };
+
+  if (nextPos.x < 0 || nextPos.x > s(img.width)) {
+    moveDirection[catIndex].x *= -1;
+  }
+  if (nextPos.y < 0 || nextPos.y > s(img.height)) {
+    moveDirection[catIndex].y *= -1;
+  }
+
+  const magnitude = Math.sqrt(pow(moveDirection[catIndex].x, 2) + pow(moveDirection[catIndex].y, 2));
+  moveDirection[catIndex].x = (moveDirection[catIndex].x / magnitude) * speed;
+  moveDirection[catIndex].y = (moveDirection[catIndex].y / magnitude) * speed;
   
-  const newX = home.x + moveDirection.x;
-  if (newX < 0) moveDirection.x = Math.random();
-  if (newX > s(img.width)) moveDirection.x = -Math.random();
-  const newY = home.y + moveDirection.y;
-  if (newY < 0) moveDirection.y = Math.random();
-  if (newY > s(img.height)) moveDirection.y = -Math.random();
-  
-  const magnitude = Math.sqrt(pow(moveDirection.x, 2) + pow(moveDirection.y, 2));
-  moveDirection.x /= magnitude;
-  moveDirection.y /= magnitude;
-  moveDirection.x *= speedCoefficient;
-  moveDirection.y *= speedCoefficient;
-  
-  // console.log(moveDirection);
-  home.x += moveDirection.x;
-  home.y += moveDirection.y;
+  home[catIndex].x += moveDirection[catIndex].x;
+  home[catIndex].y += moveDirection[catIndex].y;
 }
 
 function draw() {
-  moveHome();
+  for (let i = 0; i < NUM_CATS; i++) {
+    moveHome(i);
+  }
   clear();
   noCursor();
   image(img, 0, 0, s(img.width), s(img.height));
   fill(0);
   textSize(20);
   
-  const largestDistance = s(sqrt(pow(img.width, 2) + pow(img.height, 2)));
-  const distance = sqrt(pow(home.x - mouseX, 2) + pow(home.y - mouseY, 2));
-  const redValuePreLog = map(distance, 0, largestDistance * 0.6, 0, 1, true);
-  const redValue = 0.5 * log((100 * redValuePreLog) + 1) / log(10);
-  
-  if (!foundHome && distance <= 5) foundHome = true; 
-  
+  let minDistance = Infinity;
+  let closestCatIndex = 0;
+  for (let i = 0; i < NUM_CATS; i++) {
+    if (foundHome[i]) continue;  // Skip found cats when calculating distance
+    const distance = sqrt(pow(home[i].x - mouseX, 2) + pow(home[i].y - mouseY, 2));
+    if (distance < minDistance) {
+      minDistance = distance;
+      closestCatIndex = i;
+    }
+    if (!foundHome[i] && distance <= speedFullCoeff() * 10) {
+      foundHome[i] = true;
+    }
+  }
 
-  if (!foundHome) {
-    fill(187, 110, 71, redValue * 250);
-    rect(0, 0, s(img.width), s(img.height));
+  const allCatsFound = foundHome.every(found => found);
+
+  if (!allCatsFound) {
+    // Calculate redValue before using it
+    const largestDistance = s(sqrt(pow(img.width, 2) + pow(img.height, 2)));
+    const redValuePreLog = map(minDistance, 0, largestDistance * 0.6, 0, 1, true);
+    const redValue = 0.5 * log((100 * redValuePreLog) + 1) / log(10);
+    
+    // Only show brown overlay if there's at least one unfound cat
+    if (minDistance !== Infinity) {
+      // Create brown overlay rectangle - opacity based on distance to nearest unfound cat
+      fill(187, 110, 71, redValue * 250);
+      rect(0, 0, s(img.width), s(img.height));
+    }
+    // Set up text styling
     fill(0);
     textFont('Courier New');
     textStyle(BOLD);
-    if (distance > 100) {
-      text("You're looking for cat", s(img.width) / 2 - 100, s(img.height) + 20);
+    
+    if (minDistance > 100) {
+      // Show progress when far from cats (e.g. "Looking for cats (2/3)")
+      text(`Looking for cats (${foundHome.filter(f => f).length}/${NUM_CATS})`, s(img.width) / 2 - 100, s(img.height) + 20);
     } else {
+      // Show "You're close!" message when near a cat
       text("You're close!", s(img.width) / 2 - 100, s(img.height) + 20);
+      
+      // Increment near-catch counter for this cat if very close
+      // This affects the speed coefficient calculation
+      if (minDistance < 20) {
+        nearCatches[closestCatIndex]++;
+      }
     }
   } else {
-    text("🐈", home.x, home.y);
+    // Set up text styling for victory message
     fill(0);
     textFont('Courier New');
     textStyle(BOLD);
-    text("FOUND CAT! (refresh for new cat location)", s(img.width) / 2 - 100, s(img.height) + 20);
+    text("FOUND ALL CATS! (refresh for new cat locations)", s(img.width) / 2 - 150, s(img.height) + 20);
   }
   
-    
+  // Draw found cats
+  foundHome.forEach((found, index) => {
+    if (found) {
+      text("🐈", home[index].x, home[index].y);
+    }
+  });
+  
   // text(`${abs(home.x - mouseX)}, ${abs(home.y - mouseY)}, ${distance}, ${log(redValue)}`, 20, 50);
   // text(`${home.x}, ${s(img.width)}, ${home.y}, ${s(img.height)}`, 20, 50);
   fill("steelblue");
-  circle(mouseX, mouseY, 10);
+  circle(mouseX, mouseY, speedFullCoeff());
 
-  // drawCat();
-  
-
+  for (let i = 0; i < NUM_CATS; i++) {
+    drawCat(i);
+  }
+  displayStats();
   
 }
+function displayStats() {
+  textAlign(RIGHT);
+  textSize(16);
+  fill(0);
+  text(`Speed: ${speedFullCoeff()}`, s(img.width) - 10, 25);
+  text(`Found: ${foundHome.filter(f => f).length}/${NUM_CATS}`, s(img.width) - 10, 45);
+  textAlign(LEFT);
+}
+
 
